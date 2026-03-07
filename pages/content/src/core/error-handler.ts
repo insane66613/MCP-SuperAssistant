@@ -37,6 +37,7 @@ class GlobalErrorHandler {
   private maxReports = 100;
   private circuitBreaker?: CircuitBreaker;
   private errorCounts = new Map<string, { count: number; lastSeen: number }>();
+  private isExtensionContextInvalidated = false;
 
   /**
    * Initialize the global error handler
@@ -60,12 +61,49 @@ class GlobalErrorHandler {
   }
 
   /**
+   * Check if an error is an "Extension context invalidated" error.
+   * This is an expected condition when the Chrome extension is reloaded or updated.
+   */
+  private isExtensionContextError(error: Error | null | undefined): boolean {
+    return !!error?.message?.includes('Extension context invalidated');
+  }
+
+  /**
+   * Handle an "Extension context invalidated" error by emitting the dedicated
+   * event once and suppressing all further processing.  This avoids noisy
+   * MEDIUM-severity logs and spurious error:unhandled events for a condition
+   * that is normal and expected when the extension is reloaded or updated.
+   */
+  private handleExtensionContextInvalidation(error: Error): void {
+    if (!this.isExtensionContextInvalidated) {
+      this.isExtensionContextInvalidated = true;
+      logger.warn('[GlobalErrorHandler] Extension context invalidated - extension was likely reloaded or updated');
+      eventBus.emit('context:bridge-invalidated', {
+        timestamp: Date.now(),
+        error: error.message,
+      });
+    }
+  }
+
+  /**
    * Set up global JavaScript error handlers
    */
   private setupGlobalHandlers(): void {
     // Handle uncaught exceptions
     window.addEventListener('error', (event) => {
-      this.handleError(event.error || new Error(event.message), {
+      const error = event.error || new Error(event.message);
+
+      // Extension context invalidation is an expected condition when the extension
+      // is reloaded or updated. Suppress it from the regular error pipeline and
+      // notify listeners via the dedicated event instead.
+      if (this.isExtensionContextError(error)) {
+        this.handleExtensionContextInvalidation(error);
+        // Prevent the browser from also logging "Uncaught Error: Extension context invalidated."
+        event.preventDefault();
+        return;
+      }
+
+      this.handleError(error, {
         component: 'window',
         operation: 'global-error',
         metadata: {
@@ -79,20 +117,20 @@ class GlobalErrorHandler {
     // Handle unhandled promise rejections
     window.addEventListener('unhandledrejection', (event) => {
       const error = event.reason instanceof Error ? event.reason : new Error(String(event.reason));
+
+      // Same suppression logic for promise rejections caused by extension context invalidation.
+      if (this.isExtensionContextError(error)) {
+        this.handleExtensionContextInvalidation(error);
+        // Prevent the browser from logging the unhandled rejection warning.
+        event.preventDefault();
+        return;
+      }
+
       this.handleError(error, {
         component: 'window',
         operation: 'unhandled-promise-rejection',
       });
     });
-
-    // Handle Chrome extension context invalidation
-    if (typeof chrome !== 'undefined' && chrome.runtime) {
-      // Monitor for runtime errors without overriding the API
-      chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-        // This is just for monitoring, we don't interfere with the message flow
-        return false;
-      });
-    }
   }
 
   /**
@@ -134,6 +172,14 @@ class GlobalErrorHandler {
    * Handle an error with context
    */
   handleError(error: Error, context: ErrorContext = {}, severity: ErrorReport['severity'] = 'medium'): void {
+    // Extension context invalidation is an expected condition (extension reloaded/updated).
+    // Route it through the dedicated handler instead of the regular error pipeline to avoid
+    // noisy logs and spurious error:unhandled events.
+    if (this.isExtensionContextError(error)) {
+      this.handleExtensionContextInvalidation(error);
+      return;
+    }
+
     const errorId = this.generateErrorId();
     const report: ErrorReport = {
       error,
@@ -319,6 +365,7 @@ class GlobalErrorHandler {
   cleanup(): void {
     this.errorReports = [];
     this.errorCounts.clear();
+    this.isExtensionContextInvalidated = false;
     this.initialized = false;
     logger.debug('[GlobalErrorHandler] Cleaned up');
   }
