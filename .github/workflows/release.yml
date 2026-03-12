@@ -44,7 +44,7 @@ jobs:
         run: bash bash-scripts/update_version.sh "${{ steps.version.outputs.version }}"
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --no-frozen-lockfile
 
       - name: Build extension
         run: pnpm build
