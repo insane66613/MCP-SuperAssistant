@@ -14,11 +14,20 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -26,10 +35,13 @@ jobs:
           version: 9.15.1
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "22.12.0"
           cache: "pnpm"
+
+      - name: Update version in code files
+        run: bash bash-scripts/update_version.sh "${{ steps.version.outputs.version }}"
 
       - name: Install dependencies
         run: pnpm install
@@ -41,7 +53,7 @@ jobs:
         run: pnpm zip
 
       - name: Upload Release Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: extension-zip
           path: ./dist-zip/*.zip
