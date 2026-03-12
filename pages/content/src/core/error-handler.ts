@@ -377,5 +377,14 @@ export const globalErrorHandler = new GlobalErrorHandler();
 // Export class for custom instances
 export { GlobalErrorHandler };
 
+/**
+ * Returns true if the given error is an "Extension context invalidated" error.
+ * This is an expected condition when the Chrome extension is reloaded or updated.
+ * Use this utility to suppress or skip such errors in event handlers.
+ */
+export function isExtensionContextError(error: Error | null | undefined): boolean {
+  return !!error?.message?.includes('Extension context invalidated');
+}
+
 // Export as default for backward compatibility
 export default globalErrorHandler;

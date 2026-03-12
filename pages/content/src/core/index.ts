@@ -10,7 +10,7 @@ export type { CircuitBreakerConfig, CircuitBreakerState, CircuitBreakerStats } f
 export { contextBridge, ContextBridge } from './context-bridge';
 export type { ContextMessage, ContextBridgeConfig } from './context-bridge';
 
-export { globalErrorHandler, GlobalErrorHandler } from './error-handler';
+export { globalErrorHandler, GlobalErrorHandler, isExtensionContextError } from './error-handler';
 export type { ErrorContext, ErrorReport } from './error-handler';
 
 export { performanceMonitor, PerformanceMonitor } from './performance';

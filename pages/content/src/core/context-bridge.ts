@@ -173,7 +173,7 @@ class ContextBridge {
       } catch (error) {
         if (this.isExtensionContextValid) {
           this.isExtensionContextValid = false;
-          logger.error('[ContextBridge] Extension context invalidated:', error);
+          logger.warn('[ContextBridge] Extension context invalidated - extension was likely reloaded or updated');
           eventBus.emit('context:bridge-invalidated', {
             timestamp: now,
             error: error instanceof Error ? error.message : String(error)
