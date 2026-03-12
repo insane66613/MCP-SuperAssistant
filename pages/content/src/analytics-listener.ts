@@ -6,7 +6,6 @@
 import { eventBus } from './events';
 import { analyticsService } from '../../../chrome-extension/utils/analytics-service';
 import { createLogger } from '@extension/shared/lib/logger';
-import { isExtensionContextError } from './core/error-handler';
 
 const logger = createLogger('AnalyticsListener');
 
@@ -64,12 +63,6 @@ export function initializeAnalyticsListeners(): void {
   // Track errors with enhanced context
   eventBus.on('error:unhandled', async (data) => {
     try {
-      // Extension context invalidation is expected when the extension is reloaded or updated.
-      // Skip tracking these errors — Chrome APIs are unavailable in this state anyway.
-      if (isExtensionContextError(data.error)) {
-        return;
-      }
-
       const errorCategory = determineErrorCategory(data.context);
 
       await analyticsService.trackError({

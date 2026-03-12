@@ -1,7 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { LoggingMessageNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
-import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/cfworker';
 
 import { EventEmitter } from './EventEmitter.js';
 import { PluginRegistry } from './PluginRegistry.js';
@@ -181,17 +180,13 @@ export class McpClient extends EventEmitter<AllEvents> {
         });
       }
 
-      // Create MCP client with CSP-safe validator (CfWorkerJsonSchemaValidator avoids
-      // new Function() / eval which would violate Chrome extension content security policy)
+      // Create MCP client
       this.client = new Client(
         {
           name: `mcp-client-${type}`,
           version: '1.0.0',
         },
-        {
-          capabilities: {},
-          jsonSchemaValidator: new CfWorkerJsonSchemaValidator(),
-        },
+        { capabilities: {} },
       );
 
       // Set up logging notification handler

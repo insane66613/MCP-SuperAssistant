@@ -7,7 +7,6 @@
 
 import { eventBus } from '../events/event-bus';
 import { createLogger } from '@extension/shared/lib/logger';
-import { isExtensionContextError } from './error-handler';
 
 
 const logger = createLogger('PerformanceMonitor');
@@ -114,11 +113,6 @@ class PerformanceMonitor {
   private setupEventBusIntegration(): void {
     // Listen for events that might indicate performance issues
     eventBus.on('error:unhandled', ({ error, context }) => {
-      // Extension context invalidation is expected when the extension is reloaded or updated.
-      // Skip marking these as performance errors to avoid noise.
-      if (isExtensionContextError(error)) {
-        return;
-      }
       this.mark('error-occurred', { error: error.message, context });
     });
 

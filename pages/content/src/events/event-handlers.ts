@@ -38,7 +38,6 @@ function handleGlobalErrorEvents() {
 import { eventBus } from './event-bus';
 import type { EventMap, UnsubscribeFunction } from './event-types';
 import { createLogger } from '@extension/shared/lib/logger';
-import { isExtensionContextError } from '../core/error-handler';
 
 const logger = createLogger('GlobalEventHandlers');
 
@@ -89,16 +88,11 @@ class GlobalEventHandlers {
   this.unsubscribeFunctions.push(
     eventBus.on('error:unhandled', (data) => {
       try {
-        // Extension context invalidation is expected when the extension is reloaded or updated.
-        // Suppress these errors to avoid noisy logs — they are handled by GlobalErrorHandler.
-        if (isExtensionContextError(data.error)) {
-          return;
-        }
-        logger.error('Event "error:unhandled":', data.error, 'Context:', data.context, 'Stack:', data.error?.stack);
+        logger.error('[GlobalEventHandlers] Event "error:unhandled":', data.error, 'Context:', data.context, 'Stack:', data.error?.stack);
         // TODO: Integrate with a global error tracking service if available
       } catch (handlerError) {
         // Prevent recursive error handling by just logging to console without emitting events
-        logger.error('Error in error:unhandled handler:', handlerError);
+        logger.error('[GlobalEventHandlers] Error in error:unhandled handler:', handlerError);
       }
     })
   );
