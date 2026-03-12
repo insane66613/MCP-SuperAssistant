@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CEB_CI: true
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
@@ -27,6 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CEB_CI: true
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
