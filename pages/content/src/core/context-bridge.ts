@@ -46,7 +46,6 @@ class ContextBridge {
   private isExtensionContextValid = true;
   private lastHealthCheck = 0;
   private readonly HEALTH_CHECK_INTERVAL = 30000; // 30 seconds
-  private healthCheckIntervalId: ReturnType<typeof setInterval> | null = null;
 
   constructor(config: ContextBridgeConfig = {}) {
     this.config = {
@@ -173,18 +172,11 @@ class ContextBridge {
       } catch (error) {
         if (this.isExtensionContextValid) {
           this.isExtensionContextValid = false;
-          logger.warn('[ContextBridge] Extension context invalidated - extension was likely reloaded or updated');
+          logger.error('[ContextBridge] Extension context invalidated:', error);
           eventBus.emit('context:bridge-invalidated', {
             timestamp: now,
             error: error instanceof Error ? error.message : String(error)
           });
-        }
-
-        // Stop polling once the context is known to be invalidated — further
-        // chrome.runtime access will keep throwing until the page is reloaded.
-        if (this.healthCheckIntervalId !== null) {
-          clearInterval(this.healthCheckIntervalId);
-          this.healthCheckIntervalId = null;
         }
       }
     };
@@ -193,7 +185,7 @@ class ContextBridge {
     performHealthCheck();
 
     // Set up periodic health checks
-    this.healthCheckIntervalId = setInterval(performHealthCheck, this.HEALTH_CHECK_INTERVAL);
+    setInterval(performHealthCheck, this.HEALTH_CHECK_INTERVAL);
   }
 
   /**
@@ -627,12 +619,6 @@ class ContextBridge {
 
     // Clear listeners
     this.messageListeners.clear();
-
-    // Clear health check interval
-    if (this.healthCheckIntervalId !== null) {
-      clearInterval(this.healthCheckIntervalId);
-      this.healthCheckIntervalId = null;
-    }
 
     this.initialized = false;
     logger.debug('[ContextBridge] Cleaned up');
