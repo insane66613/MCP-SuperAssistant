@@ -1,60 +1,93 @@
-// src/shims/ajv.ts
+// MV3 service workers forbid Ajv's dynamic Function() code generation.
+// Interpret JSON Schema without eval, preserving real validation and errors.
+import { Validator } from '@cfworker/json-schema';
+
+type Schema = Record<string, unknown> | boolean;
+type ErrorObject = {
+  instancePath: string;
+  schemaPath: string;
+  keyword: string;
+  params: Record<string, unknown>;
+  message: string;
+};
+type ValidateFunction = ((data: unknown) => boolean) & {
+  errors: ErrorObject[] | null;
+};
 
 export class Name {
   public str: string;
-
-  constructor(s: unknown) {
-    this.str = String(s);
-  }
-
-  toString() {
-    return this.str;
-  }
+  constructor(s: unknown) { this.str = String(s); }
+  toString() { return this.str; }
 }
 
 export default class Ajv {
-  constructor(options?: any) {}
+  errors: ErrorObject[] | null = null;
+  private readonly schemas = new Map<string, Schema>();
+  constructor(_options?: unknown) {}
 
-  // CRITICAL: Return 'this' to allow method chaining (e.g. ajv.addSchema().compile())
-  addSchema(schema: any, key?: string) {
-    return this;
-  }
-  addKeyword(keyword: string, definition?: any) {
-    return this;
-  }
-  addFormat(name: string, format: any) {
+  addSchema(schema: Schema, key?: string): this {
+    const id = key || (typeof schema === 'object' && schema !== null
+      ? String(schema.$id || schema.id || '')
+      : '');
+    if (!id) throw new Error('Ajv shim requires an identifier for added schemas');
+    this.schemas.set(id, schema);
     return this;
   }
 
-  // The actual validator
-  compile(schema: any) {
-    // In development, warn that this CSP-safe shim bypasses real validation.
-    if (
-      typeof process !== 'undefined' &&
-      process.env &&
-      process.env.NODE_ENV === 'development'
-    ) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        '[Ajv shim] Using CSP-compatible Ajv shim: all validations will always pass. ' +
-          'This is intended for the Chrome extension environment and may mask schema errors.',
-      );
+  addKeyword(keyword: string): never {
+    throw new Error(`Unsupported dynamic Ajv keyword: ${keyword}`);
+  }
+
+  addFormat(name: string): never {
+    throw new Error(`Unsupported dynamic Ajv format: ${name}`);
+  }
+
+  compile(schema: Schema | string): ValidateFunction {
+    const target = typeof schema === 'string' ? this.schemas.get(schema) : schema;
+    if (target === undefined) {
+      throw new Error('Ajv shim cannot compile an unknown schema identifier');
     }
-    // Return a function that always says "Valid" (true)
-    return (data: any) => true;
+    const validator = new Validator(target, '7', false);
+    for (const [id, registered] of this.schemas) {
+      if (typeof registered === 'object' && registered !== null) {
+        validator.addSchema(registered, id);
+      }
+    }
+    const check = ((data: unknown): boolean => {
+      try {
+        const result = validator.validate(data);
+        check.errors = result.valid ? null : result.errors.map(error => ({
+          instancePath: error.instanceLocation,
+          schemaPath: error.keywordLocation,
+          keyword: error.keyword,
+          params: {},
+          message: error.error,
+        }));
+        this.errors = check.errors;
+        return result.valid;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'schema validation failed';
+        check.errors = [{
+          instancePath: '',
+          schemaPath: '#',
+          keyword: 'validation',
+          params: {},
+          message,
+        }];
+        this.errors = check.errors;
+        return false;
+      }
+    }) as ValidateFunction;
+    check.errors = null;
+    return check;
   }
 
-  // Direct validation
-  validate(schema: any, data: any) {
-    return true;
+  validate(schema: Schema | string, data: unknown): boolean {
+    return this.compile(schema)(data);
   }
-
-  // Properties
-  errors = null;
 }
-
-// Export dummy codegen helpers just in case something imports them.
-export const _ = () => {};
-export const str = () => {};
+// Retained for import compatibility only; no code is generated or evaluated.
+export const _ = () => '';
+export const str = () => '';
 export const nil = {};
 export const CodeGen = {};
